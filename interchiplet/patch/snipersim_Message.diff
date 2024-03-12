@@ -1,0 +1,68 @@
+diff --git a/./a/syscall_modeling.cc b/./b/syscall_modeling.cc
+index dc114b9..52467f4 100644
+--- a/./a/syscall_modeling.cc
++++ b/./b/syscall_modeling.cc
+@@ -49,6 +49,63 @@ bool handleAccessMemory(void *arg, Sift::MemoryLockType lock_signal, Sift::Memor
+    return true;
+ }
+ 
++void passGpuMessage(int dstX, int dstY, int srcX,int srcY,int data){
++    printf("Enter Sniper passGpuMessage\n");
++    char * fileName = new char[100];
++    sprintf(fileName,"./buffer%d_%d_%d_%d",srcX,srcY,dstX,dstY);
++
++
++    int fd = open(fileName, O_WRONLY);
++    std::string command = "mkfifo " + std::string(fileName);
++    if (fd == -1) {
++        system(command.c_str());
++        std::cout << command << std::endl;
++        fd = open(fileName, O_WRONLY);
++    }
++    printf("Send data: %d\n", data);
++    write(fd, &data, sizeof(data));
++    close(fd);
++    delete fileName;
++    
++
++    char* filename= new char[64];
++    sprintf(filename,"./bench.%d.%d",srcX,srcY);
++    std::fstream toController(filename,std::ios::out | std::ios::trunc);
++    long long unsigned int timeNow = 0;
++
++    if(!toController.is_open())
++    {
++                std::cout<<"Can not pass message to controller\n\n\n\n\n\n";
++                return;
++    }
++    else
++    {
++                toController<<timeNow<<" ";
++                toController<<srcX<<" ";
++                toController<<srcY<<" ";
++                toController<<dstX<<" ";
++                toController<<dstY<<" ";
++                toController<<5<<"\n";
++            }
++    toController.close();
++}
++int readGpuMessage( int srcX,int srcY,int dstX,int dstY,int data,int dataNum){
++    printf("Enter Sniper readGpuMessage\n");
++    char * fileName = new char[100];
++    sprintf(fileName,"./buffer%d_%d_%d_%d",srcX,srcY,dstX,dstY);
++    int fd;
++    std::cout << "Read " << fileName << std::endl;
++    while((fd = open(fileName, O_RDONLY)) == -1){}
++
++    int tmpdata = 0;
++    read(fd, &tmpdata, sizeof(tmpdata));
++    printf("Recieve data: %d\n", tmpdata);
++
++    close(fd);
++    delete fileName;
++    return tmpdata;
++}
++
+ // Emulate all system calls
+ // Do this as a regular callback (versus syscall enter/exit functions) as those hold the global pin lock
+ VOID emulateSyscallFunc(THREADID threadid, CONTEXT *ctxt)
