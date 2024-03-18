@@ -44,6 +44,10 @@ class ptx_recognizer;
 #include <map>
 #include <sstream>
 #include <string>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "../abstract_hardware_model.h"
 #include "../gpgpu-sim/gpu-sim.h"
 #include "../gpgpu-sim/shader.h"
@@ -1073,39 +1077,43 @@ void add_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   thread->set_operand_value(dst, data, i_type, thread, pI, overflow, carry);
 }
 void readFile(int dst_x, int dst_y ,int src_x, int src_y,long long unsigned int* data)
+{   
+    //printf("1111\n");
+    char * fileName = new char[100];
+    sprintf(fileName,"./buffer%d_%d_%d_%d",src_x,src_y,dst_x,dst_y);
+    int fd;
+    //printf("Before GPGPU Recieve data from %s \n", fileName);
+      while((fd = open(fileName, O_RDONLY)) == -1){
+        printf("Wait for %s\n", fileName);
+      }
+    //printf("2222\n");
+    int tmpdata = 0;
+    //printf("read = %d\n", read(fd, &tmpdata, sizeof(tmpdata)));
+
+    //printf("GPGPU Recieve data: %d\n", tmpdata);
+    *data = tmpdata;
+    close(fd);
+    delete fileName;
+}
+// gdb attach pid
+// | tee
+// 管道读写数据之前需要同步？  
+void passMessage(int dst_x, int dst_y,int src_x, int src_y , int data)  //
 {
     char * fileName = new char[100];
     sprintf(fileName,"./buffer%d_%d_%d_%d",src_x,src_y,dst_x,dst_y);
-    std::ifstream i(fileName);
-    int tmpdata = 0;
-    i>>tmpdata;
-    *data = tmpdata;
-    i.close();
-    delete fileName;
-}
+    printf("Before GPGPU Send data to %s\n",fileName);
+    fflush(stdout);
 
-void passMessage(int dst_x, int dst_y,int src_x, int src_y , int data)
-{
-    char * fileName = new char[100];
-    sprintf(fileName,"./buffer%d_%d_%d_%d",dst_x,dst_y,src_x,src_y);
-    FILE *pass = fopen( fileName, "ab" );
-    int number=data;
-    int j;
-    int len=0;
-    char str[100000000];
-                j = 0;
-                while(data)
-                {
-                        len++;
-                        str[j ++] = data % 10 + '0';
-                        data /= 10;
-                }
-                puts(str);
+  int fd = open(fileName, O_WRONLY);
+   if (fd == -1) {
+      printf("GPGPU Cannot open pipe file %s.\n", fileName);
+      exit(1);
+   }
 
-    for(int k=len-1;k>=0;k--)
-    	fputc(str[k],pass); 
-    fputc('\n',pass);
-    fclose(pass);
+    printf("GPGPU Send data: %d to %s\n", data, fileName);
+    write(fd, &data, sizeof(data));
+    close(fd);
     delete fileName;
 }
 
@@ -1138,7 +1146,7 @@ void addc_impl( const ptx_instruction *pI, ptx_thread_info *thread )
 
    if(opValue == 0){
    char* filename= new char[64];
-   sprintf(filename,"./trace/bench.%d.%d",src_x,src_y);
+   sprintf(filename, "./bench.%d.%d",src_x,src_y);
    std::fstream toController(filename,std::ios::app);
    long long unsigned int timeNow = thread->get_gpu()->gpu_sim_cycle+thread->get_gpu()->gpu_tot_sim_cycle;
 
